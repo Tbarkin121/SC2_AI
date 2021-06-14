@@ -1,0 +1,3 @@
+pysc2
+# needed to conda install scipy to get it to work properly
+# conda install scipy
