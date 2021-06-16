@@ -29,6 +29,10 @@ class ZergAgent(base_agent.BaseAgent):
         self.previous_action = tf.constant([0])
         # self.previous_action = None
         self.previous_state = None
+        self.is_hatch_selected = False
+        self.is_larva_selected = False
+        self.previous_worker_supply = 0
+        self.previous_overlord_supply = 0
 
     def unit_type_is_selected(self, obs, unit_type):
         if (len(obs.observation.single_select) > 0 and
@@ -85,12 +89,18 @@ class ZergAgent(base_agent.BaseAgent):
             # spawningpool_count/200,
             # spinecrawler_count/200,
             # obs.observation.player.minerals/100,
-            # self.previous_action.numpy()[0]/10,       
+            # self.previous_action.numpy()[0]/10, 
+            self.is_hatch_selected,
+            self.is_larva_selected,      
         ]
     
         if self.previous_state is not None:
-            reward = mineral_collect_score/1000
-                
+            # reward = mineral_collect_score/1000
+            # reward = worker_supply/200
+            # reward -= (supply_limit - worker_supply)/200
+            reward = 0
+            if worker_supply > self.previous_worker_supply:
+                reward += 1
             # if killed_unit_score > self.previous_killed_unit_score:
             #     reward += KILL_UNIT_REWARD
             #     # pass
@@ -116,18 +126,21 @@ class ZergAgent(base_agent.BaseAgent):
         self.previous_zergling_count = zergling_count
         self.previous_state = current_state
         self.previous_action = rl_action
-    
+        self.previous_worker_supply = worker_supply
         if smart_action == ACTION_DO_NOTHING:
             return actions.FUNCTIONS.no_op()
 
-        elif smart_action == ACTION_SELECT_DRONE:
-            drones = self.get_units_by_type(obs, units.Zerg.Drone)
-            if len(drones) > 0:
-                drone = random.choice(drones)
-                return actions.FUNCTIONS.select_point("select_all_type", (np.clip(drone.x,0,83),
-                                                                    np.clip(drone.y,0,83)))
-    
+        elif smart_action == ACTION_SELECT_HATCHERY:
+            self.is_hatch_selected = True
+            self.is_larva_selected = False
+            hatch = self.get_units_by_type(obs, units.Zerg.Hatchery)
+            if len(hatch) > 0:
+                hatch = random.choice(hatch)
+                return actions.FUNCTIONS.select_point("select_all_type", (hatch.x,
+                                                                        hatch.y))
         elif smart_action == ACTION_SELECT_LARVA:
+            self.is_hatch_selected = False
+            self.is_larva_selected = True
             if self.can_do(obs, actions.FUNCTIONS.select_larva.id):
                 return actions.FUNCTIONS.select_larva("now")
             # larva = self.get_units_by_type(obs, units.Zerg.Larva)
@@ -135,17 +148,26 @@ class ZergAgent(base_agent.BaseAgent):
             #     larva = random.choice(larva)
             #     return actions.FUNCTIONS.select_point("select_all_type", (larva.x,
                                                                         # larva.y))
+        elif smart_action == ACTION_BUILD_DRONE:
+            self.is_hatch_selected = False
+            self.is_larva_selected = False
+            if self.unit_type_is_selected(obs, units.Zerg.Larva):
+                if self.can_do(obs, actions.FUNCTIONS.Train_Drone_quick.id):
+                    return actions.FUNCTIONS.Train_Drone_quick("now")
+
         elif smart_action == ACTION_BUILD_OVERLORD:
+            self.is_hatch_selected = False
+            self.is_larva_selected = False
             if self.unit_type_is_selected(obs, units.Zerg.Larva):
                 if self.can_do(obs, actions.FUNCTIONS.Train_Overlord_quick.id):
                     return actions.FUNCTIONS.Train_Overlord_quick("now")
 
-        elif smart_action == ACTION_SELECT_HATCHERY:
-            hatch = self.get_units_by_type(obs, units.Zerg.Hatchery)
-            if len(hatch) > 0:
-                hatch = random.choice(hatch)
-                return actions.FUNCTIONS.select_point("select_all_type", (hatch.x,
-                                                                        hatch.y))
+        elif smart_action == ACTION_SELECT_DRONE:
+            drones = self.get_units_by_type(obs, units.Zerg.Drone)
+            if len(drones) > 0:
+                drone = random.choice(drones)
+                return actions.FUNCTIONS.select_point("select_all_type", (np.clip(drone.x,0,83),
+                                                                    np.clip(drone.y,0,83)))
 
         elif smart_action == ACTION_BUILD_SPAWNING_POOL:
             if self.can_do(obs, actions.FUNCTIONS.Build_SpawningPool_screen.id):
@@ -164,11 +186,6 @@ class ZergAgent(base_agent.BaseAgent):
                 if self.can_do(obs, actions.FUNCTIONS.Train_Zergling_quick.id):
                     return actions.FUNCTIONS.Train_Zergling_quick("now")
 
-        elif smart_action == ACTION_BUILD_DRONE:
-            if self.unit_type_is_selected(obs, units.Zerg.Larva):
-                if self.can_do(obs, actions.FUNCTIONS.Train_Drone_quick.id):
-                    return actions.FUNCTIONS.Train_Drone_quick("now")
-
         elif smart_action == ACTION_SELECT_ARMY:
             if self.can_do(obs, actions.FUNCTIONS.select_army.id):
                 return actions.FUNCTIONS.select_army("select")
@@ -184,52 +201,52 @@ class ZergAgent(base_agent.BaseAgent):
 
 
 
-def main(unused_argv):
-    agent = ZergAgent()
-    try:
-        # for _ in range(1):
-        while True:
-            with sc2_env.SC2Env(
-                map_name="Simple64",
-                players=[sc2_env.Agent(sc2_env.Race.zerg),
-                        sc2_env.Bot(sc2_env.Race.random,
-                                    sc2_env.Difficulty.very_easy)],
-                agent_interface_format=features.AgentInterfaceFormat(
-                    feature_dimensions=features.Dimensions(screen=84, minimap=64),
-                    use_feature_units=True,
-                    use_raw_units=True),
-                step_mul=16,
-                game_steps_per_episode=0,
-                visualize=True) as env:
-                
-            # with sc2_env.SC2Env(
-            #     map_name="Simple64",
-            #     players=[sc2_env.Agent(sc2_env.Race.zerg),
-            #             sc2_env.Agent(sc2_env.Race.zerg)],
-            #     agent_interface_format=features.AgentInterfaceFormat(
-            #         feature_dimensions=features.Dimensions(screen=84, minimap=64),
-            #         use_feature_units=True,
-            #         use_raw_units=True),
-            #     step_mul=16,
-            #     game_steps_per_episode=0,
-            #     visualize=True) as env:
-                
-                agent.setup(env.observation_spec(), env.action_spec())
-                
-                timesteps = env.reset()
-                agent.reset()
-                
-                while True:
-                    step_actions = [agent.step(timesteps[0])]
-                    if timesteps[0].last():
-                        break
-                    timesteps = env.step(step_actions)
+# def main(unused_argv):
+agent = ZergAgent()
+try:
+    # for _ in range(1):
+    while True:
+        with sc2_env.SC2Env(
+            map_name="Simple64",
+            players=[sc2_env.Agent(sc2_env.Race.zerg),
+                    sc2_env.Bot(sc2_env.Race.random,
+                                sc2_env.Difficulty.very_easy)],
+            agent_interface_format=features.AgentInterfaceFormat(
+                feature_dimensions=features.Dimensions(screen=84, minimap=64),
+                use_feature_units=True,
+                use_raw_units=True),
+            step_mul=16,
+            game_steps_per_episode=0,
+            visualize=True) as env:
             
-    except KeyboardInterrupt:
-        pass
+        # with sc2_env.SC2Env(
+        #     map_name="Simple64",
+        #     players=[sc2_env.Agent(sc2_env.Race.zerg),
+        #             sc2_env.Agent(sc2_env.Race.zerg)],
+        #     agent_interface_format=features.AgentInterfaceFormat(
+        #         feature_dimensions=features.Dimensions(screen=84, minimap=64),
+        #         use_feature_units=True,
+        #         use_raw_units=True),
+        #     step_mul=16,
+        #     game_steps_per_episode=0,
+        #     visualize=True) as env:
+            
+            agent.setup(env.observation_spec(), env.action_spec())
+            
+            timesteps = env.reset()
+            agent.reset()
+            
+            while True:
+                step_actions = [agent.step(timesteps[0])]
+                if timesteps[0].last():
+                    break
+                timesteps = env.step(step_actions)
+        
+except KeyboardInterrupt:
+    pass
   
-if __name__ == "__main__":
-  app.run(main)
+# if __name__ == "__main__":
+#   app.run(main)
 
 
 #%%

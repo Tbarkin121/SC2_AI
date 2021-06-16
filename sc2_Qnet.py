@@ -24,24 +24,27 @@ class QNet(tf.keras.Model):
     x = self.d1(inputs)
     # x = tf.keras.activations.tanh(x)
     x = self.lr1(x)
-    # x = self.d2(x)
-    # x = self.lr2(x)
+    x = self.d2(x)
+    x = self.lr2(x)
     return self.Q(x)
 
 class QLearner:
-    def __init__(self, actions, learning_rate=0.01, reward_decay=0.90, e_greedy=0.9):
+    def __init__(self, actions, learning_rate=0.01, reward_decay=0.90, e_greedy=0., load_model = False):
         self.actions = actions  # a list
         self.num_actions = len(actions)
         self.lr = learning_rate
         self.gamma = reward_decay
         self.epsilon = e_greedy
-        self.q_net = QNet(self.num_actions, 32)
-        self.q_net.compile()
+        if(load_model):
+            self.q_net = tf.keras.models.load_model('saved_model/mineral_walker')
+        else:
+            self.q_net = QNet(self.num_actions, 128)
+            self.q_net.compile()
         self.q_opt = tf.keras.optimizers.Adam(learning_rate=1e-3)
-        self.target_net = QNet(self.num_actions, 32)
+        self.target_net = QNet(self.num_actions, 128)
         self.target_net.compile()
         self.learn_steps = 0
-        self.copy_rate = 100
+        self.copy_rate = 10
 
     def choose_action(self, observation):
         observation = tf.expand_dims(tf.Variable(observation, dtype=tf.float32), 0)
@@ -49,13 +52,16 @@ class QLearner:
         if np.random.uniform() < self.epsilon:
             # choose best action
             q_val = self.q_net(observation)
-            # action = tf.argmax(q_val, axis=1)
-            probs = tf.nn.softmax(q_val)
-            log_probs = tf.math.log(probs)
-            action = tf.random.categorical(log_probs, 1)[:,0]
+            action = tf.argmax(q_val, axis=1)
+
+            # probs = tf.nn.softmax(q_val)
+            # log_probs = tf.math.log(probs)
+            # action = tf.random.categorical(log_probs, 1)[:,0]
+            # action = tf.constant([0])
         else:
             # choose random action
             action = tf.constant([np.random.choice(self.actions)])
+            # action = tf.constant([0])
         return action
 
     def learn(self, s1, a, r, s2):
@@ -67,8 +73,9 @@ class QLearner:
         a = tf.expand_dims(tf.Variable(a), 0)
         with tf.GradientTape() as tape:
             print('a = {}'.format(a))
-            q1 = self.q_net(s1)
-            q2 = self.target_net(s2)
+            q1 = self.q_net(s1, training=True)
+            q2 = self.target_net(s2, training=False)
+
             print('q1 = {}'.format(q1))
             print('q2 = {}'.format(q2))
             q2_max_val = tf.math.reduce_max(q2)
@@ -78,11 +85,13 @@ class QLearner:
             # q_target = tf.gather(self.q_net(s), a, axis=1, batch_dims=1)[0][0]
             q_target = r + self.gamma * q2_max_val
             print('q_target = {}'.format(q_target))
-            loss = (q_target - q1_selected)**2
+            # loss = (q_target - q1_selected)**2
+            loss = 0.5*(q1_selected - q_target)**2
             # loss = tf.math.reduce_sum( (q_target - q_predict)**2)
             print('loss = {}'.format(loss))
 
         grads = tape.gradient(loss, self.q_net.trainable_variables)
+        # print('grads = {}'.format(grads))
         self.q_opt.apply_gradients(zip(grads, self.q_net.trainable_variables))
         
         if(self.learn_steps % self.copy_rate == 0):
