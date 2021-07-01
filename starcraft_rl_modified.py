@@ -56,7 +56,6 @@ class ZergAgent(base_agent.BaseAgent):
 
     def step(self, obs):
         super(ZergAgent, self).step(obs)
-    
         # Determining Start Position and Enemy Start Position (Naive)
         if obs.first():
             player_y, player_x = (obs.observation.feature_minimap.player_relative ==
@@ -198,7 +197,6 @@ class ZergAgent(base_agent.BaseAgent):
         # IF Action we chose failed
         self.previous_action = tf.constant([0])
         return actions.FUNCTIONS.no_op()
-
 
 
 def main(unused_argv):
