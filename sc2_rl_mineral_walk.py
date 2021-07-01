@@ -106,9 +106,10 @@ class MarineAgent(base_agent.BaseAgent):
         remaining_minerals = [[unit.x, unit.y] for unit in obs.observation.feature_units
                   if unit.alliance == features.PlayerRelative.NEUTRAL]
         reward = -0.01
-        for i in range(len(self.minerals)):
-            if(self.minerals[i] not in remaining_minerals and self.mineral_available[i] is 1):
+        for i in range(len(self.minerals)): 
+            if( (self.minerals[i] not in remaining_minerals) and (self.mineral_available[i] == 1)):
                 self.mineral_available[i] = 0
+                # print('WE GOT MINERALS!!!')
                 reward += 1
                 
         self.marines = [unit for unit in obs.observation.feature_units
@@ -124,15 +125,16 @@ class MarineAgent(base_agent.BaseAgent):
 
         current_state = [
             self.are_units_selected,
-            marine_unit.x,
-            marine_unit.y,
+            marine_unit.x/84.,
+            marine_unit.y/84.,
         ]
         for i in range(len(self.minerals)):
-            current_state.append(self.minerals[i][0])
-            current_state.append(self.minerals[i][1])
+            current_state.append(self.minerals[i][0]/84.)
+            current_state.append(self.minerals[i][1]/84.)
         for i in range(len(self.mineral_available)):
             current_state.append(self.mineral_available[i])
-        
+        # print('current state')
+        # print(current_state)
         if self.previous_state is not None:
             self.qlearn.learn(self.previous_state, self.previous_action, reward, current_state)
         
@@ -230,43 +232,44 @@ class MarineAgent(base_agent.BaseAgent):
         elif smart_action == MOVE_TO_M19:
             if self.can_do(obs, actions.FUNCTIONS.Move_screen.id):
                 return actions.FUNCTIONS.Move_screen("now", self.minerals[19]) 
-            
+        
+        # self.previous_action = tf.constant([0])
         return actions.FUNCTIONS.no_op()
         
-# def main(unused_argv):
-agent = MarineAgent()
-try:
-    # for _ in range(1):
-    while True:
-        with sc2_env.SC2Env(
-            map_name="CollectMineralShards",
-            players=[sc2_env.Agent(sc2_env.Race.zerg),
-                    sc2_env.Bot(sc2_env.Race.random,
-                                sc2_env.Difficulty.very_easy)],
-            agent_interface_format=features.AgentInterfaceFormat(
-                feature_dimensions=features.Dimensions(screen=84, minimap=64),
-                use_feature_units=True,
-                use_raw_units=True),
-            step_mul=16,
-            game_steps_per_episode=0,
-            visualize=True) as env:
+def main(unused_argv):
+    agent = MarineAgent()
+    try:
+        # for _ in range(1):
+        while True:
+            with sc2_env.SC2Env(
+                map_name="CollectMineralShards",
+                players=[sc2_env.Agent(sc2_env.Race.zerg),
+                        sc2_env.Bot(sc2_env.Race.random,
+                                    sc2_env.Difficulty.very_easy)],
+                agent_interface_format=features.AgentInterfaceFormat(
+                    feature_dimensions=features.Dimensions(screen=84, minimap=64),
+                    use_feature_units=True,
+                    use_raw_units=True),
+                step_mul=1,
+                game_steps_per_episode=0,
+                visualize=True) as env:
+                
+                agent.setup(env.observation_spec(), env.action_spec())
+                
+                timesteps = env.reset()
+                agent.reset()
+                
+                while True:
+                    step_actions = [agent.step(timesteps[0])]
+                    if timesteps[0].last():
+                        break
+                    timesteps = env.step(step_actions)
             
-            agent.setup(env.observation_spec(), env.action_spec())
-            
-            timesteps = env.reset()
-            agent.reset()
-            
-            while True:
-                step_actions = [agent.step(timesteps[0])]
-                if timesteps[0].last():
-                    break
-                timesteps = env.step(step_actions)
-        
-except KeyboardInterrupt:
-    pass
+    except KeyboardInterrupt:
+        pass
   
-# if __name__ == "__main__":
-#   app.run(main)
+if __name__ == "__main__":
+  app.run(main)
 
 #%%
 

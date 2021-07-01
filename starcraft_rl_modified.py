@@ -201,52 +201,52 @@ class ZergAgent(base_agent.BaseAgent):
 
 
 
-# def main(unused_argv):
-agent = ZergAgent()
-try:
-    # for _ in range(1):
-    while True:
-        with sc2_env.SC2Env(
-            map_name="Simple64",
-            players=[sc2_env.Agent(sc2_env.Race.zerg),
-                    sc2_env.Bot(sc2_env.Race.random,
-                                sc2_env.Difficulty.very_easy)],
-            agent_interface_format=features.AgentInterfaceFormat(
-                feature_dimensions=features.Dimensions(screen=84, minimap=64),
-                use_feature_units=True,
-                use_raw_units=True),
-            step_mul=16,
-            game_steps_per_episode=0,
-            visualize=True) as env:
+def main(unused_argv):
+    agent = ZergAgent()
+    try:
+        # for _ in range(1):
+        while True:
+            with sc2_env.SC2Env(
+                map_name="Simple64",
+                players=[sc2_env.Agent(sc2_env.Race.zerg),
+                        sc2_env.Bot(sc2_env.Race.random,
+                                    sc2_env.Difficulty.very_easy)],
+                agent_interface_format=features.AgentInterfaceFormat(
+                    feature_dimensions=features.Dimensions(screen=84, minimap=64),
+                    use_feature_units=True,
+                    use_raw_units=True),
+                step_mul=16,
+                game_steps_per_episode=0,
+                visualize=True) as env:
+                
+            # with sc2_env.SC2Env(
+            #     map_name="Simple64",
+            #     players=[sc2_env.Agent(sc2_env.Race.zerg),
+            #             sc2_env.Agent(sc2_env.Race.zerg)],
+            #     agent_interface_format=features.AgentInterfaceFormat(
+            #         feature_dimensions=features.Dimensions(screen=84, minimap=64),
+            #         use_feature_units=True,
+            #         use_raw_units=True),
+            #     step_mul=16,
+            #     game_steps_per_episode=0,
+            #     visualize=True) as env:
+                
+                agent.setup(env.observation_spec(), env.action_spec())
+                
+                timesteps = env.reset()
+                agent.reset()
+                
+                while True:
+                    step_actions = [agent.step(timesteps[0])]
+                    if timesteps[0].last():
+                        break
+                    timesteps = env.step(step_actions)
             
-        # with sc2_env.SC2Env(
-        #     map_name="Simple64",
-        #     players=[sc2_env.Agent(sc2_env.Race.zerg),
-        #             sc2_env.Agent(sc2_env.Race.zerg)],
-        #     agent_interface_format=features.AgentInterfaceFormat(
-        #         feature_dimensions=features.Dimensions(screen=84, minimap=64),
-        #         use_feature_units=True,
-        #         use_raw_units=True),
-        #     step_mul=16,
-        #     game_steps_per_episode=0,
-        #     visualize=True) as env:
-            
-            agent.setup(env.observation_spec(), env.action_spec())
-            
-            timesteps = env.reset()
-            agent.reset()
-            
-            while True:
-                step_actions = [agent.step(timesteps[0])]
-                if timesteps[0].last():
-                    break
-                timesteps = env.step(step_actions)
-        
-except KeyboardInterrupt:
-    pass
-  
-# if __name__ == "__main__":
-#   app.run(main)
+    except KeyboardInterrupt:
+        pass
+   
+if __name__ == "__main__":
+  app.run(main)
 
 
 #%%
